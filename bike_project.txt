@@ -1,0 +1,304 @@
+-- Creating a table for the 2020q1 data
+create table cyclistic_2020 (
+	ride_id varchar(100) constraint ride_id_key primary key,
+	rideable_type varchar(50),
+	started_at varchar(100),
+	ended_at varchar(100),
+	start_station_name varchar(200),
+	start_station_id integer,
+	end_station_name varchar(200),
+	end_station_id integer,
+	start_lat numeric,
+	start_lng numeric,
+	end_lat numeric,
+	end_lng numeric,
+	member_casual varchar(50)
+)
+
+-- Transferring and copying data into the table
+
+copy cyclistic_2020
+from '/tmp/Divvy_Trips_2020_Q1.csv'
+with (format csv, header)
+
+-- Checking if the data was imported properly 
+select * from cyclistic_2020
+
+-- Adding a new column for the date of bike return
+alter table cyclistic_2020
+add column ended_at_date date
+
+-- Transporting the data from an existing column to the new one but with a new data type
+update cyclistic_2020
+set ended_at_date = date(ended_at)
+
+-- Adding a new column for the start date of the bike rental
+alter table cyclistic_2020
+add column started_at_date date
+
+-- Transferring the data from the existing column to the new one but with a new data type
+
+update cyclistic_2020
+set started_at_date = date(started_at)
+
+-- Adding a new column for the day of the week of the bike rental 
+alter table cyclistic_2020
+add column  started_at_dayofweek integer
+
+-- Extracting data for the column day of the week
+update cyclistic_2020
+set started_at_dayofweek = extract(dow from started_at_date)
+
+-- Creating a new column for the start rental date
+alter table cyclistic_2020
+add column started_at_timestamp timestamp
+
+-- Transferring data to the newly added column
+update cyclistic_2020
+set started_at_timestamp = cast(started_at as timestamp)
+
+-- Creating a new column for the end rental date
+alter table cyclistic_2020
+add column ended_at_timestamp timestamp
+
+-- Transfering data to the newly added column
+update cyclistic_2020
+set ended_at_timestamp = cast(ended_at as timestamp)
+
+-- Creating a new column for the total ride-length
+alter table cyclistic_2020
+add column ride_length interval
+
+-- Adding data to the newly added column
+update cyclistic_2020
+set ride_length = (ended_at_timestamp - started_at_timestamp)
+
+-- Checking the average ride time for each type of customer
+select member_casual as customer_type, avg(ride_length)
+from cyclistic_2020
+group by member_casual
+
+-- Checking the number of each customer type in the data
+select member_casual, count(*)
+from cyclistic_2020
+group by member_casual
+
+-- Adding a new column to show the starting rental day in English
+alter table cyclistic_2020
+add column started_day varchar(20)
+
+-- Extracting data for the new column
+update cyclistic_2020
+set started_day = case 
+         when started_at_dayofweek = 0 then 'Sunday'
+	 when started_at_dayofweek = 1 then 'Monday'
+	 when started_at_dayofweek = 2 then 'Tuesday'
+	 when started_at_dayofweek = 3 then 'Wednesday'
+	 when started_at_dayofweek = 4 then 'Thursday'
+	 when started_at_dayofweek = 5 then 'Friday'
+	 when started_at_dayofweek = 6 then 'Saturday'
+end
+
+-- Checking the busiest day for the bike rental company
+select mode() within group (order by started_day)
+from cyclistic_2020
+
+-- Comeparing the average ride time and the median ride time
+select avg(ride_length), 
+percentile_cont(.5) within group (order by ride_length) as median
+from cyclistic_2020
+
+
+-- Checking for the max and min ride time for each customer type
+select member_casual, min(ride_length) as min_ride_length,
+max(ride_length) as max_ride_length
+from cyclistic_2020
+group by member_casual
+
+-- Making a summary table 
+select member_casual, min(ride_length) as min_ride_length,
+max(ride_length) as max_ride_length,
+avg(ride_length) as avg_ride_length, 
+percentile_cont(.5) within group (order by ride_length) as median_ride_length
+from cyclistic_2020
+group by member_casual
+
+-- Checking the number of rides for each type of customer in different days of the week
+
+select member_casual, started_day, count(*)
+from cyclistic_2020
+group by member_casual, started_day
+order by count(*) desc
+
+--Creating a table for the 4th quarter of 2019
+create table cyclistic_2019_q4 (
+	trip_id bigserial constraint trip_id_key primary key,
+	start_time timestamp,
+	end_time timestamp,
+	bikeid integer,
+	tripduration numeric,
+	from_station_id integer,
+	from_station_name varchar(200),
+	to_station_id integer,
+	to_station_name varchar(200),
+	usertype varchar(20),
+	gender varchar(20),
+	birthyear integer
+)
+
+-- Importing data into table 
+copy cyclistic_2019_q4
+from '/tmp/Divvy_Trips_2019_Q4.csv'
+with (format csv, header)
+
+-- Adding a new column for ride time
+alter table cyclistic_2019_q4
+add column trip_duration interval
+
+update cyclistic_2019_q4
+set trip_duration = end_time - start_time
+
+-- Adding a column for the starting day
+alter table cyclistic_2019_q4
+add column start_day integer
+
+update cyclistic_2019_q4
+set start_day = extract(dow from start_time)
+
+-- Adding a column to show the day of the week for each rental 
+alter table cyclistic_2019_q4
+add column start_dayofweek varchar(20)
+
+update cyclistic_2019_q4
+set start_dayofweek = case when start_day = 0 then 'Sunday'
+  					   when start_day = 1 then 'Monday'
+					   when start_day = 2 then 'Tuesday'
+					   when start_day = 3 then 'Wednesday'
+					   when start_day = 4 then 'Thursday'
+					   when start_day = 5 then 'Friday'
+					   when start_day = 6 then 'Saturday'
+					  end
+
+
+-- Checking the average and median ride time for each customer type
+select usertype, avg(trip_duration), 
+percentile_cont(.5) within group (order by trip_duration) as median_trip_duration
+from cyclistic_2019_q4
+group by usertype
+
+-- Checking the average ride time for each customer type during different days of the week
+
+select usertype, start_dayofweek, avg(trip_duration)
+from cyclistic_2019_q4
+group by usertype, start_dayofweek
+order by avg(trip_duration) desc
+
+-- Checking the number of bike rental transactions during different days of the week for each customer type
+
+select usertype, start_dayofweek, count(*)
+from cyclistic_2019_q4
+group by usertype, start_dayofweek
+order by count(*) desc
+
+-- Creating a pivot table for summary of information on transaction for different days of the week
+
+select * from crosstab (
+	'select usertype,
+	start_dayofweek,
+	count(*)
+	from cyclistic_2019_q4
+	group by usertype, start_dayofweek',
+	
+	'select start_dayofweek
+	from cyclistic_2019_q4
+	group by start_dayofweek'
+)
+
+as (
+	usertype varchar(20),
+	Sunday bigint,
+	Monday bigint,
+	Tuesday bigint,
+	Wednesday bigint,
+	Thursday bigint,
+	Friday bigint,
+	Saturday bigint
+)
+
+
+-- Obtaining the percentage change for members from 2019q4 to 2020q1
+
+select 
+(select cast(count(*) as numeric)
+ from cyclistic_2019_q4
+ where usertype = 'Subscriber') as number_of_member_2019q4,
+ 
+ (select cast(count(*) as numeric)
+ from cyclistic_2020
+ where member_casual = 'member') as number_of_members_2020q1,
+
+round(((select cast(count(*) as numeric)
+ from cyclistic_2019_q4
+ where usertype = 'Subscriber') - 
+(select cast(count(*) as numeric)
+ from cyclistic_2020 
+where member_casual = 'member')) /
+(select cast(count(*) as numeric)
+ from cyclistic_2019_q4
+ where usertype = 'Subscriber'), 2) as percentage_change
+
+
+-- Obtaining the percentage change for casual riders from 2019q4 to 2020q1
+
+select 
+(select cast(count(*) as numeric)
+ from cyclistic_2019_q4
+ where usertype = 'Customer') as number_of_casual_2019q4,
+ 
+ (select cast(count(*) as numeric)
+ from cyclistic_2020
+ where member_casual = 'casual') as number_of_casual_2020q1,
+
+round(((select cast(count(*) as numeric)
+ from cyclistic_2019_q4
+ where usertype = 'Customer') - 
+(select cast(count(*) as numeric)
+ from cyclistic_2020 
+where member_casual = 'casual')) /
+(select cast(count(*) as numeric)
+ from cyclistic_2019_q4
+ where usertype = 'Customer'), 2) as percentage_change
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
